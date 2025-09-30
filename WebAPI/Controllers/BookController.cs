@@ -90,7 +90,6 @@ namespace WebAPI.Controllers
 
             return Ok(deleteBook);
         }
-
         #region Private methods 
 
         private bool ValidatePublisher(int publisherId)
@@ -115,9 +114,25 @@ namespace WebAPI.Controllers
                 ModelState.AddModelError(nameof(addBookRequestDTO.Rate), $"{nameof(addBookRequestDTO.Rate)} must be between 0 and 5");
             }
 
+            // 🔹 Kiểm tra AuthorIds
+            if (addBookRequestDTO.AuthorIds == null || !addBookRequestDTO.AuthorIds.Any())
+            {
+                ModelState.AddModelError(nameof(addBookRequestDTO.AuthorIds), "Book must have at least one author.");
+            }
+            else
+            {
+                // Kiểm tra AuthorId có tồn tại trong bảng Authors không
+                var validAuthorCount = _dbContext.Authors
+                    .Count(a => addBookRequestDTO.AuthorIds.Contains(a.Id));
+
+                if (validAuthorCount != addBookRequestDTO.AuthorIds.Distinct().Count())
+                {
+                    ModelState.AddModelError(nameof(addBookRequestDTO.AuthorIds), "One or more authors do not exist in Authors table.");
+                }
+            }
+
             return ModelState.ErrorCount == 0;
         }
-
         #endregion
     }
 }

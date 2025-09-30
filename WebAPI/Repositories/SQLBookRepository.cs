@@ -8,50 +8,60 @@ namespace WebAPI.Repositories
     public class SQLBookRepository : IBookRepository
     {
         private readonly AppDbContext _dbContext;
+
         public SQLBookRepository(AppDbContext dbContext)
         {
-                       _dbContext = dbContext;
+            _dbContext = dbContext;
         }
 
+        // GET ALL
         public List<BookWithAuthorAndPublisherDTO> GetAllBooks()
         {
-            var allBooks = _dbContext.Books.Select(Books => new BookWithAuthorAndPublisherDTO()
-            {
-                Id = Books.Id,
-                Title = Books.Title,
-                Description = Books.Description,
-                IsRead = Books.IsRead,
-                DateRead = Books.IsRead ? Books.DateRead.Value : null,
-                Rate = Books.IsRead ? Books.Rate.Value : null,
-                Genre = Books.Genre,
-                CoverUrl = Books.CoverUrl,
-                PublisherName = Books.Publisher.Name,
-                AuthorNames = Books.Book_Authors.Select(n => n.Author.FullName).ToList()
-            }).ToList();
-            return allBooks;
+            return _dbContext.Books
+                .Select(book => new BookWithAuthorAndPublisherDTO()
+                {
+                    Id = book.Id,
+                    Title = book.Title,
+                    Description = book.Description,
+                    IsRead = book.IsRead,
+                    DateRead = book.IsRead ? book.DateRead.Value : null,
+                    Rate = book.IsRead ? book.Rate.Value : null,
+                    Genre = book.Genre,
+                    CoverUrl = book.CoverUrl,
+                    PublisherName = book.Publisher.Name,
+                    AuthorNames = book.Book_Authors
+                                      .Select(ba => ba.Author.FullName)
+                                      .ToList()
+                })
+                .ToList();
         }
-        public BookWithAuthorAndPublisherDTO GetBookById(int id)
+
+        // GET BY ID
+        public BookWithAuthorAndPublisherDTO? GetBookById(int id)
         {
-            var bookWithDomain = _dbContext.Books.Where(n => n.Id == id);
-            //Map Domain Model to DTOs
-            var bookWithIdDTO = bookWithDomain.Select(book => new BookWithAuthorAndPublisherDTO()
-            {
-                Id = book.Id,
-                Title = book.Title,
-                Description = book.Description,
-                IsRead = book.IsRead,
-                DateRead = book.DateRead,
-                Rate = book.Rate,
-                Genre = book.Genre,
-                CoverUrl = book.CoverUrl,
-                PublisherName = book.Publisher.Name,
-                AuthorNames = book.Book_Authors.Select(n => n.Author.FullName).ToList()
-            }).FirstOrDefault();
-            return bookWithIdDTO;
+            return _dbContext.Books
+                .Where(b => b.Id == id)
+                .Select(book => new BookWithAuthorAndPublisherDTO()
+                {
+                    Id = book.Id,
+                    Title = book.Title,
+                    Description = book.Description,
+                    IsRead = book.IsRead,
+                    DateRead = book.DateRead,
+                    Rate = book.Rate,
+                    Genre = book.Genre,
+                    CoverUrl = book.CoverUrl,
+                    PublisherName = book.Publisher.Name,
+                    AuthorNames = book.Book_Authors
+                                      .Select(ba => ba.Author.FullName)
+                                      .ToList()
+                })
+                .FirstOrDefault();
         }
-        public AddBookRequestDTO AddBook(AddBookRequestDTO addBookRequestDTO)
+
+        // ADD
+        public BookWithAuthorAndPublisherDTO AddBook(AddBookRequestDTO addBookRequestDTO)
         {
-            //map DTO to Domain Model
             var bookDomainModel = new Book
             {
                 Title = addBookRequestDTO.Title,
@@ -64,68 +74,99 @@ namespace WebAPI.Repositories
                 DateAdded = addBookRequestDTO.DateAdded,
                 PublisherId = addBookRequestDTO.PublisherId
             };
-            //Use Domain Model to add Book
+
             _dbContext.Books.Add(bookDomainModel);
             _dbContext.SaveChanges();
 
-            foreach (var id in addBookRequestDTO.AuthorIds)
-            {
-                var _book_author = new Book_Author()
+            // thêm Authors (AddRange để tiết kiệm SaveChanges)
+            var bookAuthors = addBookRequestDTO.AuthorIds
+                .Distinct()
+                .Select(aid => new Book_Author
                 {
                     BookId = bookDomainModel.Id,
-                    AuthorId = id
-                };
-                _dbContext.Books_Authors.Add(_book_author);
-                _dbContext.SaveChanges();
-            }
-            return addBookRequestDTO;
+                    AuthorId = aid
+                }).ToList();
+
+            _dbContext.Books_Authors.AddRange(bookAuthors);
+            _dbContext.SaveChanges();
+
+            return MapToDTO(bookDomainModel.Id);
         }
 
-        public AddBookRequestDTO? UpdateBookById(int id, AddBookRequestDTO bookDTO)
+        // UPDATE
+        public BookWithAuthorAndPublisherDTO? UpdateBookById(int id, AddBookRequestDTO bookDTO)
         {
-            var bookDomain = _dbContext.Books.FirstOrDefault(n => n.Id == id);
-            if (bookDomain != null)
-            {
-                bookDomain.Title = bookDTO.Title;
-                bookDomain.Description = bookDTO.Description;
-                bookDomain.IsRead = bookDTO.IsRead;
-                bookDomain.DateRead = bookDTO.DateRead;
-                bookDomain.Rate = bookDTO.Rate;
-                bookDomain.Genre = bookDTO.Genre;
-                bookDomain.CoverUrl = bookDTO.CoverUrl;
-                bookDomain.DateAdded = bookDTO.DateAdded;
-                bookDomain.PublisherId = bookDTO.PublisherId;
-                _dbContext.SaveChanges();
-            }
+            var bookDomain = _dbContext.Books.FirstOrDefault(b => b.Id == id);
+            if (bookDomain == null) return null;
 
-            var authorDomain = _dbContext.Books_Authors.Where(a => a.BookId == id).ToList();
-            if (authorDomain != null)
-            {
-                _dbContext.Books_Authors.RemoveRange(authorDomain);
-                _dbContext.SaveChanges();
-            }
-            foreach (var authorid in bookDTO.AuthorIds)
-            {
-                var _book_author = new Book_Author()
+            // cập nhật Book
+            bookDomain.Title = bookDTO.Title;
+            bookDomain.Description = bookDTO.Description;
+            bookDomain.IsRead = bookDTO.IsRead;
+            bookDomain.DateRead = bookDTO.DateRead;
+            bookDomain.Rate = bookDTO.Rate;
+            bookDomain.Genre = bookDTO.Genre;
+            bookDomain.CoverUrl = bookDTO.CoverUrl;
+            bookDomain.DateAdded = bookDTO.DateAdded;
+            bookDomain.PublisherId = bookDTO.PublisherId;
+
+            // xóa quan hệ cũ
+            var oldAuthors = _dbContext.Books_Authors.Where(ba => ba.BookId == id);
+            _dbContext.Books_Authors.RemoveRange(oldAuthors);
+
+            // thêm quan hệ mới
+            var newAuthors = bookDTO.AuthorIds
+                .Distinct()
+                .Select(aid => new Book_Author
                 {
                     BookId = id,
-                    AuthorId = authorid
-                };
+                    AuthorId = aid
+                }).ToList();
+            _dbContext.Books_Authors.AddRange(newAuthors);
 
-                _dbContext.Books_Authors.Add(_book_author);
-                _dbContext.SaveChanges();
-            }
-            return bookDTO;
+            _dbContext.SaveChanges();
+
+            return MapToDTO(id);
         }
+
+        // DELETE
         public Book? DeleteBookById(int id)
         {
-            var bookDomain = _dbContext.Books.FirstOrDefault(n => n.Id == id);
-            if (bookDomain != null)
-            {
-                _dbContext.Books.Remove(bookDomain);
-                _dbContext.SaveChanges();
-            }
+            var bookDomain = _dbContext.Books
+                .Include(b => b.Book_Authors)
+                .FirstOrDefault(b => b.Id == id);
+
+            if (bookDomain == null) return null;
+
+            // xóa Book + Book_Authors
+            _dbContext.Books_Authors.RemoveRange(bookDomain.Book_Authors);
+            _dbContext.Books.Remove(bookDomain);
+            _dbContext.SaveChanges();
+
             return bookDomain;
+        }
+
+        // PRIVATE: Map Book + Authors + Publisher sang DTO
+        private BookWithAuthorAndPublisherDTO MapToDTO(int bookId)
+        {
+            return _dbContext.Books
+                .Where(b => b.Id == bookId)
+                .Select(book => new BookWithAuthorAndPublisherDTO()
+                {
+                    Id = book.Id,
+                    Title = book.Title,
+                    Description = book.Description,
+                    IsRead = book.IsRead,
+                    DateRead = book.DateRead,
+                    Rate = book.Rate,
+                    Genre = book.Genre,
+                    CoverUrl = book.CoverUrl,
+                    PublisherName = book.Publisher.Name,
+                    AuthorNames = book.Book_Authors
+                                      .Select(ba => ba.Author.FullName)
+                                      .ToList()
+                })
+                .First();
         }
     }
 }
