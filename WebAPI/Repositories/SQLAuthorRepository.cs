@@ -49,6 +49,12 @@ namespace WebAPI.Repositories
             var author = _dbContext.Authors.FirstOrDefault(a => a.Id == id);
             if (author == null) return null;
 
+            bool hasBooks = _dbContext.Books_Authors.Any(ba => ba.AuthorId == id);
+            if (hasBooks)
+            {
+                throw new InvalidOperationException($"Cannot delete Author {id} because there are Books linked to it");
+            }
+
             _dbContext.Authors.Remove(author);
             _dbContext.SaveChanges();
             return author;

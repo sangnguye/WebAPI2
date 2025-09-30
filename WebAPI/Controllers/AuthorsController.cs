@@ -1,7 +1,8 @@
 ﻿using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using WebAPI.Repositories;
+using WebAPI.Data;
 using WebAPI.Models.DTO;
+using WebAPI.Repositories;
 
 namespace WebAPI.Controllers
 {
@@ -56,9 +57,27 @@ namespace WebAPI.Controllers
         [HttpDelete("{id}")]
         public IActionResult DeleteAuthorById(int id)
         {
+            // kiểm tra tác giả tồn tại
+            var author = _authorRepository.GetAuthorById(id);
+            if (author == null) return NotFound();
+
+            // kiểm tra còn sách liên kết không
+            using (var scope = HttpContext.RequestServices.CreateScope())
+            {
+                var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+                bool hasBooks = dbContext.Books_Authors.Any(ba => ba.AuthorId == id);
+                if (hasBooks)
+                {
+                    return Conflict(new
+                    {
+                        error = "AuthorInUse",
+                        message = $"Cannot delete Author {id} because there are Books linked to it. Please remove links in Book_Author first."
+                    });
+                }
+            }
+
             var deleted = _authorRepository.DeleteAuthorById(id);
-            if (deleted == null) return NotFound();
-            return Ok(deleted);
+            return Ok(new { message = $"Author {id} deleted successfully" });
         }
     }
 }

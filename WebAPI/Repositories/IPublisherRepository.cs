@@ -1,17 +1,17 @@
 ﻿using WebAPI.Models.Domain;
-using WebAPI.Models.DTO;
+using System.Collections.Generic;
 
 namespace WebAPI.Repositories
 {
     public interface IPublisherRepository
     {
-        List<PublisherDTO> GetAllPublishers();
-        PublisherNoIdDTO GetPublisherById(int id);
-        AddPublisherRequestDTO AddPublisher(AddPublisherRequestDTO addPublisherRequestDTO);
-        PublisherNoIdDTO UpdatePublisherById(int id, PublisherNoIdDTO publisherNoIdDTO);
+        IEnumerable<Publisher> GetAllPublishers();
+        Publisher? GetPublisherById(int id);
+        Publisher AddPublisher(Publisher publisher);
+        Publisher? UpdatePublisherById(int id, Publisher publisher);
         Publisher? DeletePublisherById(int id);
+
         bool ExistsByName(string name, int? excludeId = null);
         bool ExistsById(int id);
     }
 }
-

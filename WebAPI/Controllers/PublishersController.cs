@@ -1,7 +1,9 @@
 ﻿using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using WebAPI.Repositories;
+using Microsoft.EntityFrameworkCore;
+using WebAPI.Models.Domain;
 using WebAPI.Models.DTO;
+using WebAPI.Repositories;
 
 namespace WebAPI.Controllers
 {
@@ -31,27 +33,34 @@ namespace WebAPI.Controllers
         }
 
         [HttpPost]
-        public IActionResult AddPublisher(AddPublisherRequestDTO dto)
+        public IActionResult AddPublisher([FromBody] AddPublisherRequestDTO dto)
         {
-            if (dto == null)
-                return BadRequest("Publisher data is required");
+            if (!ModelState.IsValid)
+                return BadRequest(ModelState);
 
-            // Kiểm tra trùng tên
             if (_publisherRepository.ExistsByName(dto.Name))
             {
                 ModelState.AddModelError(nameof(dto.Name), "Publisher name already exists");
                 return BadRequest(ModelState);
             }
 
-            var added = _publisherRepository.AddPublisher(dto);
-            return CreatedAtAction(nameof(GetPublisherById), new { id = added.Id }, added);
+            // map DTO -> domain
+            var publisher = new Publisher { Name = dto.Name };
+
+            var added = _publisherRepository.AddPublisher(publisher);
+
+            // map domain -> output DTO (ví dụ PublisherDTO)
+            var result = new PublisherDTO { Id = added.Id, Name = added.Name };
+
+            return CreatedAtAction(nameof(GetPublisherById), new { id = added.Id }, result);
         }
+
 
         [HttpPut("{id}")]
         public IActionResult UpdatePublisherById(int id, PublisherNoIdDTO dto)
         {
-            if (dto == null)
-                return BadRequest("Publisher data is required");
+            if (!ModelState.IsValid)
+                return BadRequest(ModelState);
 
             if (_publisherRepository.ExistsByName(dto.Name, id))
             {
@@ -59,17 +68,33 @@ namespace WebAPI.Controllers
                 return BadRequest(ModelState);
             }
 
-            var updated = _publisherRepository.UpdatePublisherById(id, dto);
+            // map DTO -> Domain
+            var publisher = new Publisher { Name = dto.Name };
+
+            var updated = _publisherRepository.UpdatePublisherById(id, publisher);
+
             if (updated == null) return NotFound();
-            return Ok(updated);
+
+            // map Domain -> DTO output nếu muốn trả DTO
+            var result = new PublisherDTO { Id = updated.Id, Name = updated.Name };
+
+            return Ok(result);
         }
+
 
         [HttpDelete("{id}")]
         public IActionResult DeletePublisherById(int id)
         {
-            var deleted = _publisherRepository.DeletePublisherById(id);
-            if (deleted == null) return NotFound();
-            return Ok(deleted);
+            try
+            {
+                var deleted = _publisherRepository.DeletePublisherById(id);
+                if (deleted == null) return NotFound();
+                return Ok(new { message = $"Publisher {id} deleted successfully" });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Conflict(new { error = "PublisherInUse", message = ex.Message });
+            }
         }
     }
 }
