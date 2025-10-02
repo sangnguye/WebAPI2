@@ -34,6 +34,8 @@ app.UseHttpsRedirection();
 
 app.UseAuthorization();
 
+app.UseMiddleware<WebAPI.Middleware.RequiredFieldsMiddleware>();
+
 app.MapControllers();
 
 app.Run();
