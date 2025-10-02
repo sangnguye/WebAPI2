@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using WebAPI.Data;
 using WebAPI.Repositories;
+using WebAPI.Models.Domain;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -17,6 +18,8 @@ builder.Services.AddDbContext<AppDbContext>(option => option.UseSqlServer(connec
 builder.Services.AddScoped<IBookRepository, SQLBookRepository>();
 builder.Services.AddScoped<IAuthorRepository, SQLAuthorRepository>();
 builder.Services.AddScoped<IPublisherRepository, SQLPublisherRepository>();
+builder.Services.Configure<BusinessRulesOptions>(builder.Configuration.GetSection("BusinessRules"));
+
 
 var app = builder.Build();
 

@@ -3,6 +3,8 @@ using WebAPI.CustomActionFilter;
 using WebAPI.Data;
 using WebAPI.Models.DTO;
 using WebAPI.Repositories;
+using WebAPI.Models.Domain;
+using Microsoft.Extensions.Options;
 
 namespace WebAPI.Controllers
 {
@@ -12,11 +14,13 @@ namespace WebAPI.Controllers
     {
         private readonly AppDbContext _dbContext;
         private readonly IBookRepository _bookRepository;
+        private readonly IOptions<BusinessRulesOptions> _businessOptions;
 
-        public BooksController(AppDbContext dbContext, IBookRepository bookRepository)
+        public BooksController(AppDbContext dbContext, IBookRepository bookRepository, IOptions<BusinessRulesOptions> businessOptions)
         {
             _dbContext = dbContext;
             _bookRepository = bookRepository;
+            _businessOptions = businessOptions;
         }
 
         // GET: api/books/get-all-books
@@ -121,7 +125,6 @@ namespace WebAPI.Controllers
             }
             else
             {
-                // Kiểm tra AuthorId có tồn tại trong bảng Authors không
                 var validAuthorCount = _dbContext.Authors
                     .Count(a => addBookRequestDTO.AuthorIds.Contains(a.Id));
 
@@ -129,6 +132,39 @@ namespace WebAPI.Controllers
                 {
                     ModelState.AddModelError(nameof(addBookRequestDTO.AuthorIds), "One or more authors do not exist in Authors table.");
                 }
+
+                var maxAuthorBooks = _businessOptions.Value.MaxBooksPerAuthor;
+                foreach (var authorId in addBookRequestDTO.AuthorIds.Distinct())
+                {
+                    var currentCount = _dbContext.Books_Authors.Count(ba => ba.AuthorId == authorId);
+                    if (currentCount >= maxAuthorBooks)
+                    {
+                        ModelState.AddModelError(nameof(addBookRequestDTO.AuthorIds),
+                            $"Author with id {authorId} already has {currentCount} books — cannot exceed {maxAuthorBooks}.");
+                    }
+                }
+            }
+
+            // 🔹 Kiểm tra số sách tối đa của Publisher trong 1 năm
+            var maxPublisherBooksPerYear = _businessOptions.Value.MaxBooksPerPublisherPerYear;
+            var currentYear = DateTime.Now.Year;
+
+            var currentYearPublisherCount = _dbContext.Books
+                .Count(b => b.PublisherId == addBookRequestDTO.PublisherId
+                         && b.DateAdded.Year == currentYear);
+
+            if (currentYearPublisherCount >= maxPublisherBooksPerYear)
+            {
+                ModelState.AddModelError(nameof(addBookRequestDTO.PublisherId),
+                    $"Publisher with id {addBookRequestDTO.PublisherId} already has {currentYearPublisherCount} books in {currentYear} — cannot exceed {maxPublisherBooksPerYear} per year.");
+            }
+
+            // 🔹 Kiểm tra Title không được trùng trong cùng 1 Publisher
+            if (_dbContext.Books.Any(b => b.Title == addBookRequestDTO.Title
+                                       && b.PublisherId == addBookRequestDTO.PublisherId))
+            {
+                ModelState.AddModelError(nameof(addBookRequestDTO.Title),
+                    $"Publisher {addBookRequestDTO.PublisherId} already has a book titled '{addBookRequestDTO.Title}'.");
             }
 
             return ModelState.ErrorCount == 0;
