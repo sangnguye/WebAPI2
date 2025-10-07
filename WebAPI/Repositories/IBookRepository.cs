@@ -5,15 +5,11 @@ namespace WebAPI.Repositories
 {
     public interface IBookRepository
     {
-        List<BookWithAuthorAndPublisherDTO> GetAllBooks();
-        BookWithAuthorAndPublisherDTO? GetBookById(int id);
-
-        // Khi thêm mới trả về BookWithAuthorAndPublisherDTO để xem cả Authors + Publisher
+        List<BookWithAuthorAndPublisherDTO> GetAllBooks(string? filterOn = null, string? filterQuery = null, string? sortBy = null,
+            bool isAscending = true, int pageNumber = 1, int pageSize = 1000);
+        BookWithAuthorAndPublisherDTO GetBookById(int id);
         BookWithAuthorAndPublisherDTO AddBook(AddBookRequestDTO addBookRequestDTO);
-
-        // Khi update cũng trả về BookWithAuthorAndPublisherDTO
         BookWithAuthorAndPublisherDTO? UpdateBookById(int id, AddBookRequestDTO bookDTO);
-
         Book? DeleteBookById(int id);
     }
 }
