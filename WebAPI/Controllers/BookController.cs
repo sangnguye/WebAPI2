@@ -1,15 +1,17 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 using WebAPI.CustomActionFilter;
 using WebAPI.Data;
+using WebAPI.Models.Domain;
 using WebAPI.Models.DTO;
 using WebAPI.Repositories;
-using WebAPI.Models.Domain;
-using Microsoft.Extensions.Options;
 
 namespace WebAPI.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
+    [Authorize]
     public class BooksController : ControllerBase
     {
         private readonly AppDbContext _dbContext;
@@ -25,6 +27,7 @@ namespace WebAPI.Controllers
 
         // GET: api/books/get-all-books
         [HttpGet("get-all-books")]
+        [Authorize(Roles = "Read")]
         public IActionResult GetAll([FromQuery] string? filterOn, [FromQuery] string? filterQuery,
                     [FromQuery] string? sortBy, [FromQuery] bool isAscending,
                     [FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 100)
@@ -36,6 +39,7 @@ namespace WebAPI.Controllers
 
         // GET: api/books/get-book-by-id/{id}
         [HttpGet("get-book-by-id/{id}")]
+        [Authorize(Roles = "Read")]
         public IActionResult GetBookById([FromRoute] int id)
         {
             var bookWithIdDTO = _bookRepository.GetBookById(id);
@@ -48,6 +52,7 @@ namespace WebAPI.Controllers
         // POST: api/books/add-book
         [HttpPost("add-book")]
         [ValidateModel]
+        [Authorize(Roles = "Read,Write")]
         public IActionResult AddBook([FromBody] AddBookRequestDTO addBookRequestDTO)
         {
             if (addBookRequestDTO == null)
@@ -67,6 +72,7 @@ namespace WebAPI.Controllers
 
         // PUT: api/books/update-book-by-id/{id}
         [HttpPut("update-book-by-id/{id}")]
+        [Authorize(Roles = "Read,Write")]
         public IActionResult UpdateBookById(int id, [FromBody] AddBookRequestDTO bookDTO)
         {
             if (bookDTO == null)
@@ -89,6 +95,7 @@ namespace WebAPI.Controllers
 
         // DELETE: api/books/delete-book-by-id/{id}
         [HttpDelete("delete-book-by-id/{id}")]
+        [Authorize(Roles = "Read,Write")]
         public IActionResult DeleteBookById(int id)
         {
             var deleteBook = _bookRepository.DeleteBookById(id);
