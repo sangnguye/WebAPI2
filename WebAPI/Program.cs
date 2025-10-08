@@ -66,6 +66,7 @@ builder.Services.AddScoped<IBookRepository, SQLBookRepository>();
 builder.Services.AddScoped<IAuthorRepository, SQLAuthorRepository>();
 builder.Services.AddScoped<IPublisherRepository, SQLPublisherRepository>();
 builder.Services.AddScoped<ITokenRepository, TokenRepository>();
+builder.Services.AddScoped<IImageRepository, LocalImageRepository>();
 // config identity user 
 builder.Services.AddIdentityCore<IdentityUser>()
     .AddRoles<IdentityRole>()
@@ -95,6 +96,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJw
     IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]))
     });
 
+builder.Services.AddHttpContextAccessor();
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
