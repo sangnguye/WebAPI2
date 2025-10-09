@@ -29,7 +29,7 @@ namespace WebAPI.Controllers
 
         // GET: api/books/get-all-books
         [HttpGet("get-all-books")]
-        [Authorize(Roles = "Read")]
+        [Authorize(Roles = "Read, Write")]
         public IActionResult GetAll([FromQuery] string? filterOn, [FromQuery] string? filterQuery,
                     [FromQuery] string? sortBy, [FromQuery] bool isAscending,
                     [FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 100)
