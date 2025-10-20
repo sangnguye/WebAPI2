@@ -18,6 +18,7 @@ var _logger = new LoggerConfiguration()
     .MinimumLevel.Information()
     .CreateLogger();
 
+
 builder.Logging.ClearProviders();
 builder.Logging.AddSerilog(_logger);
 builder.Services.AddControllers();

@@ -13,18 +13,28 @@ namespace Library_web.Controllers
     public class BooksController : Controller
     {
         private readonly IHttpClientFactory httpClientFactory;
-        public BooksController(IHttpClientFactory httpClientFactory)
+        private readonly IHttpContextAccessor httpContextAccessor;
+        public BooksController(IHttpClientFactory httpClientFactory, IHttpContextAccessor httpContextAccessor)
         {
             this.httpClientFactory = httpClientFactory;
+            this.httpContextAccessor = httpContextAccessor;
         }
 
         public async Task<IActionResult> Index([FromQuery] string filterOn = null, string filterQuery = null, string sortBy = null, bool isAscending = true)
         {
+            var token = httpContextAccessor.HttpContext?.Session.GetString("JWToken");
+            if (string.IsNullOrEmpty(token))
+            {
+                TempData["ErrorMessage"] = "⚠️ Vui lòng đăng nhập trước!";
+                return RedirectToAction("Login", "Account"); // Đổi "Account" thành tên Controller đăng nhập của bạn
+            }
+
             List<BookDTO> response = new List<BookDTO>(); // tạo đối tượng với model Book
             try
             {
                 //lấy dữ liệu books from API
                 var client = httpClientFactory.CreateClient(); //khởi tạo Client
+                client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
                 var httpResponseMess = await client.GetAsync("https://localhost:7178/api/Books/get-all-books?filterOn=" + filterOn + "&filterQuery=" + filterQuery + "&sortBy=" + sortBy + "&isAscending=" + isAscending);
                 httpResponseMess.EnsureSuccessStatusCode(); // kiểm tra mã trạng thái trả về 200
                 response.AddRange(await httpResponseMess.Content.ReadFromJsonAsync<IEnumerable<BookDTO>>());
@@ -37,22 +47,61 @@ namespace Library_web.Controllers
             return View(response); //truyền dữ liệu sang View thông qua biến response
         }
 
+        [HttpGet]
+        public async Task<IActionResult> addBook()
+        {
+            var token = httpContextAccessor.HttpContext?.Session.GetString("JWToken");
+            if (string.IsNullOrEmpty(token))
+            {
+                TempData["ErrorMessage"] = "⚠️ Vui lòng đăng nhập trước!";
+                return View();
+            }
+
+            try
+            {
+                var client = httpClientFactory.CreateClient();
+                client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+
+                // Lấy danh sách tác giả
+                List<authorDTO> authors = new List<authorDTO>();
+                var httpResponseAuthors = await client.GetAsync("https://localhost:7178/api/Authors/get-all-authors");
+                httpResponseAuthors.EnsureSuccessStatusCode();
+                authors.AddRange(await httpResponseAuthors.Content.ReadFromJsonAsync<IEnumerable<authorDTO>>());
+                ViewBag.listAuthor = authors;
+
+                // Lấy danh sách nhà xuất bản
+                List<publisherDTO> publishers = new List<publisherDTO>();
+                var httpResponsePublishers = await client.GetAsync("https://localhost:7178/api/Publishers/get-all-publishers");
+                httpResponsePublishers.EnsureSuccessStatusCode();
+                publishers.AddRange(await httpResponsePublishers.Content.ReadFromJsonAsync<IEnumerable<publisherDTO>>());
+                ViewBag.listPublisher = publishers;
+            }
+            catch (Exception ex)
+            {
+                ViewBag.Error = ex.Message;
+            }
+
+            // Trả về view hiển thị form thêm sách
+            return View();
+        }
+
+
         [HttpPost]
         public async Task<IActionResult> addBook(addBookDTO addBookDTO)
         {
             try
             {
                 var client = httpClientFactory.CreateClient();
-                var httpRequestMessage = new HttpRequestMessage()
+                var httpRequestMess = new HttpRequestMessage()
                 {
                     Method = HttpMethod.Post,
                     RequestUri = new Uri("https://localhost:7178/api/Books/add-book"),  // Thay URL
                     Content = new StringContent(JsonSerializer.Serialize(addBookDTO), Encoding.UTF8, MediaTypeNames.Application.Json)
                 };
                 //Console.WriteLine(JsonSerializer(addBookDTO));
-                var httpResponseMessage = await client.SendAsync(httpRequestMessage);
-                httpResponseMessage.EnsureSuccessStatusCode();
-                var response = await httpRequestMessage.Content.ReadFromJsonAsync<addBookDTO>();
+                var httpResponseMess = await client.SendAsync(httpRequestMess);
+                httpResponseMess.EnsureSuccessStatusCode();
+                var response = await httpRequestMess.Content.ReadFromJsonAsync<addBookDTO>();
                 if (response != null)
                 {
                     return RedirectToAction("Index", "Books");
